@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sillage — Digital Perfume Creator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Jost:wght@200;300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0906;
+    --fg: #f0ead8;
+    --accent: #c9a96e;
+    --muted: rgba(240,234,216,0.4);
+    --glass: rgba(240,234,216,0.06);
+    --glass-border: rgba(240,234,216,0.12);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Jost', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: default;
+  }
+  canvas#bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+  /* ——— LAYOUT ——— */
+  #app { position: relative; z-index: 1; min-height: 100vh; }
+  .screen { 
+    min-height: 100vh; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center;
+    padding: 2rem 1.5rem;
+    transition: opacity .6s ease;
+  }
+  .screen.hidden { display: none; }
+
+  /* ——— TYPOGRAPHY ——— */
+  .serif { font-family: 'Cormorant Garamond', serif; }
+  h1 { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: clamp(2rem,6vw,3.8rem); letter-spacing: 0.04em; }
+  h2 { font-family: 'Cormorant Garamond', serif; font-weight: 300; font-size: clamp(1.4rem,4vw,2.4rem); letter-spacing: 0.06em; }
+  p { line-height: 1.7; color: var(--muted); font-size: .9rem; letter-spacing: 0.04em; }
+  .label { font-size: .65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); }
+
+  /* ——— GLASS CARD ——— */
+  .card {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    backdrop-filter: blur(20px);
+    padding: 2.5rem 2rem;
+    width: 100%;
+    max-width: 520px;
+  }
+
+  /* ——— INPUTS ——— */
+  input[type=text], textarea {
+    width: 100%;
+    background: rgba(240,234,216,0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    color: var(--fg);
+    font-family: 'Jost', sans-serif;
+    font-size: .95rem;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+    padding: .85rem 1.1rem;
+    outline: none;
+    transition: border-color .3s, background .3s;
+    resize: none;
+  }
+  input[type=text]:focus, textarea:focus {
+    border-color: var(--accent);
+    background: rgba(201,169,110,0.06);
+  }
+  input::placeholder, textarea::placeholder { color: rgba(240,234,216,0.25); }
+
+  /* ——— NOTE CARDS ——— */
+  .notes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; width: 100%; }
+  .note-card {
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 1rem .9rem;
+    cursor: pointer;
+    transition: transform .25s, border-color .25s, background .25s;
+    position: relative;
+    overflow: hidden;
+  }
+  .note-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity .3s;
+    background: var(--note-color, transparent);
+    filter: blur(20px);
+    z-index: 0;
+  }
+  .note-card:hover::before, .note-card.selected::before { opacity: 0.15; }
+  .note-card:hover { transform: translateY(-2px); border-color: rgba(240,234,216,0.25); }
+  .note-card.selected { border-color: var(--note-color, var(--accent)); }
+  .note-card > * { position: relative; z-index: 1; }
+  .note-dot { width: 10px; height: 10px; border-radius: 50%; margin-bottom: .5rem; }
+  .note-name { font-size: .82rem; letter-spacing: 0.08em; margin-bottom: .2rem; }
+  .note-desc { font-size: .68rem; color: var(--muted); letter-spacing: 0.03em; }
+
+  /* ——— BUTTONS ——— */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    padding: .85rem 2rem;
+    border-radius: 50px;
+    border: 1px solid var(--glass-border);
+    background: var(--glass);
+    color: var(--fg);
+    font-family: 'Jost', sans-serif;
+    font-size: .8rem;
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .3s;
+    text-decoration: none;
+  }
+  .btn:hover { background: rgba(240,234,216,0.12); border-color: rgba(240,234,216,0.3); transform: translateY(-1px); }
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0a0906;
+    font-weight: 400;
+  }
+  .btn-primary:hover { background: #d9b97e; border-color: #d9b97e; }
+  .btn-sm { padding: .5rem 1.2rem; font-size: .7rem; }
+  .btn-ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn-ghost:hover { color: var(--fg); background: transparent; }
+
+  /* ——— PROGRESS ——— */
+  .progress-bar { 
+    display: flex; gap: .4rem; margin-bottom: 2.5rem; 
+  }
+  .progress-dot {
+    width: 28px; height: 2px; border-radius: 1px;
+    background: var(--glass-border);
+    transition: background .4s;
+  }
+  .progress-dot.active { background: var(--accent); }
+  .progress-dot.done { background: rgba(201,169,110,0.4); }
+
+  /* ——— THEME SWATCHES ——— */
+  .themes-grid { display: flex; gap: .8rem; flex-wrap: wrap; }
+  .theme-swatch {
+    width: 44px; height: 44px; border-radius: 50%;
+    cursor: pointer; border: 2px solid transparent;
+    transition: transform .2s, border-color .2s;
+    position: relative;
+  }
+  .theme-swatch:hover { transform: scale(1.1); }
+  .theme-swatch.selected { border-color: var(--fg); }
+  .theme-swatch::after {
+    content: '✓';
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .7rem; color: white;
+    opacity: 0; transition: opacity .2s;
+  }
+  .theme-swatch.selected::after { opacity: 1; }
+
+  /* ——— BOTTLE SVG AREA ——— */
+  #bottle-wrap {
+    position: relative;
+    width: 200px; height: 320px;
+    cursor: pointer;
+    margin: 2rem auto;
+  }
+  #bottle-wrap svg { width: 100%; height: 100%; filter: drop-shadow(0 0 40px rgba(201,169,110,0.3)); }
+  .bottle-hint { 
+    font-size: .65rem; letter-spacing: 0.2em; text-transform: uppercase; 
+    color: var(--muted); text-align: center; margin-top: .5rem;
+    animation: pulse-hint 2s ease-in-out infinite;
+  }
+  @keyframes pulse-hint { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+  /* ——— PARTICLES ——— */
+  #particle-canvas { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+
+  /* ——— EXPERIENCE SCREEN ——— */
+  #exp-screen {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: var(--bg);
+    transition: opacity .8s;
+  }
+  #exp-screen.hidden { opacity: 0; pointer-events: none; display: flex !important; }
+  #exp-bg-layer {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, var(--exp-c1, #1a0a05) 0%, var(--bg) 70%);
+    transition: all 1.5s ease;
+    z-index: 0;
+  }
+  #exp-content { position: relative; z-index: 2; text-align: center; padding: 2rem; max-width: 560px; }
+  .exp-phase-label { 
+    font-size: .6rem; letter-spacing: 0.25em; text-transform: uppercase; 
+    color: var(--accent); margin-bottom: 1.5rem; opacity: 0;
+    transition: opacity .8s;
+  }
+  #exp-message {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: clamp(1.2rem, 3.5vw, 1.8rem);
+    line-height: 1.6;
+    color: var(--fg);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 1.2s, transform 1.2s;
+    margin-top: 2rem;
+  }
+  #exp-recipient {
+    font-size: .75rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 1rem; opacity: 0; transition: opacity 1s;
+  }
+
+  /* ——— LINK BOX ——— */
+  .link-box {
+    display: flex; gap: .5rem; align-items: center;
+    background: rgba(240,234,216,0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: .6rem .8rem .6rem 1rem;
+    width: 100%;
+  }
+  .link-text { flex: 1; font-size: .72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0.03em; }
+
+  /* ——— ANIMATIONS ——— */
+  .fade-up { animation: fadeUp .7s ease forwards; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:none} }
+  .fade-in { animation: fadeIn .6s ease forwards; }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+  /* ——— DIVIDER ——— */
+  .divider { width: 40px; height: 1px; background: var(--glass-border); margin: 1.5rem auto; }
+  .ornament { color: var(--accent); font-size: 1.2rem; text-align: center; }
+
+  /* ——— MISC ——— */
+  .row { display: flex; align-items: center; gap: 1rem; }
+  .spacer { flex: 1; }
+  .mt1 { margin-top: .5rem; }
+  .mt2 { margin-top: 1rem; }
+  .mt3 { margin-top: 1.5rem; }
+  .mt4 { margin-top: 2rem; }
+  .mb2 { margin-bottom: 1rem; }
+  .mb3 { margin-bottom: 1.5rem; }
+  .text-center { text-align: center; }
+  .w100 { width: 100%; }
+
+  /* ——— LANDING ——— */
+  #landing-screen { text-align: center; }
+  .landing-subtitle { font-size: clamp(.8rem,2vw,1rem); letter-spacing: 0.12em; }
+  .tagline { 
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: clamp(1rem,3vw,1.4rem);
+    color: var(--muted);
+    margin: 1rem 0 2.5rem;
+  }
+
+  /* ——— MOBILE ——— */
+  @media(max-width:480px) {
+    .notes-grid { grid-template-columns: 1fr; }
+    .card { padding: 1.8rem 1.3rem; }
+  }
+
+  /* ——— SCROLLBAR ——— */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 2px; }
+
+  /* Surprise shimmer */
+  @keyframes shimmer {
+    0%{background-position:200% center}
+    100%{background-position:-200% center}
+  }
+  .surprise-btn {
+    background: linear-gradient(90deg, var(--accent), #e8c490, var(--accent));
+    background-size: 200% auto;
+    animation: shimmer 3s linear infinite;
+    border-color: transparent;
+    color: #0a0906;
+  }
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<canvas id="particle-canvas"></canvas>
+
+<div id="app">
+
+  <!-- ══════════════════════════════════════
+       LANDING
+  ══════════════════════════════════════ -->
+  <div id="landing-screen" class="screen">
+    <div class="fade-up" style="animation-delay:.1s">
+      <div class="label mb2">An olfactory fantasy</div>
+      <h1>Sillage</h1>
+      <p class="tagline">If feelings had a fragrance</p>
+      <p style="max-width:320px;margin:0 auto 2.5rem">Compose a digital perfume made of emotions.<br>Share it. Let someone feel it.</p>
+      <div style="display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="startCreation()">Create a Perfume</button>
+        <button class="btn surprise-btn" onclick="surpriseMe()">✦ Surprise Me</button>
+      </div>
+    </div>
+    <div id="floating-bottle" style="margin-top:3rem;opacity:.7">
+      <svg width="80" height="130" viewBox="0 0 80 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="30" y="2" width="20" height="12" rx="3" fill="rgba(201,169,110,0.3)" stroke="rgba(201,169,110,0.5)" stroke-width="1"/>
+        <path d="M22 26 Q20 40 18 60 L18 110 Q18 122 30 122 L50 122 Q62 122 62 110 L62 60 Q60 40 58 26 Z" fill="rgba(201,169,110,0.08)" stroke="rgba(201,169,110,0.35)" stroke-width="1"/>
+        <ellipse cx="40" cy="26" rx="18" ry="6" fill="rgba(201,169,110,0.12)" stroke="rgba(201,169,110,0.3)" stroke-width="1"/>
+        <path d="M24 55 Q40 48 56 55" stroke="rgba(240,234,216,0.1)" stroke-width="1" fill="none"/>
+        <path d="M22 80 Q40 70 58 80" stroke="rgba(240,234,216,0.07)" stroke-width="1" fill="none"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       CREATION FLOW
+  ══════════════════════════════════════ -->
+  <div id="create-screen" class="screen hidden">
+    <div class="card fade-up">
+      <div class="progress-bar" id="progress-bar"></div>
+      <div id="step-content"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       PREVIEW SCREEN
+  ══════════════════════════════════════ -->
+  <div id="preview-screen" class="screen hidden">
+    <div class="card fade-up" style="max-width:560px">
+      <div class="label text-center mb2">Your Perfume</div>
+      <h2 class="text-center serif" id="prev-title" style="margin-bottom:.3rem"></h2>
+      <div id="prev-notes-preview" style="display:flex;justify-content:center;gap:.5rem;margin:1.2rem 0 1.5rem"></div>
+      
+      <div id="bottle-wrap" onclick="triggerBottleSpray()">
+        <svg id="bottle-svg" viewBox="0 0 200 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Cap -->
+          <rect x="72" y="8" width="56" height="28" rx="8" id="bottle-cap" fill="#c9a96e" opacity=".9"/>
+          <!-- Neck -->
+          <rect x="80" y="36" width="40" height="22" rx="4" id="bottle-neck" fill="rgba(201,169,110,0.3)" stroke="rgba(201,169,110,0.5)" stroke-width="1"/>
+          <!-- Collar -->
+          <ellipse cx="100" cy="58" rx="24" ry="6" fill="rgba(201,169,110,0.4)" stroke="rgba(201,169,110,0.5)" stroke-width="1"/>
+          <!-- Body -->
+          <path d="M52 72 Q48 100 46 140 L46 240 Q46 280 76 282 L124 282 Q154 282 154 240 L154 140 Q152 100 148 72 Z" 
+                id="bottle-body" 
+                fill="rgba(201,169,110,0.08)" 
+                stroke="rgba(201,169,110,0.35)" 
+                stroke-width="1.5"/>
+          <!-- Liquid fill -->
+          <clipPath id="bottle-clip">
+            <path d="M53 73 Q49 100 47 140 L47 240 Q47 279 76 281 L124 281 Q153 281 153 240 L153 140 Q151 100 147 73 Z"/>
+          </clipPath>
+          <rect id="liquid-fill" x="46" y="160" width="110" height="122" clip-path="url(#bottle-clip)" fill="rgba(201,169,110,0.15)"/>
+          <!-- Shine -->
+          <path d="M60 90 Q62 130 62 180" stroke="rgba(255,255,255,0.08)" stroke-width="3" stroke-linecap="round"/>
+          <!-- Label zone -->
+          <rect id="bottle-label" x="56" y="140" width="88" height="88" rx="8" fill="rgba(240,234,216,0.04)" stroke="rgba(240,234,216,0.08)" stroke-width="1"/>
+          <!-- Label text -->
+          <text x="100" y="176" text-anchor="middle" font-family="Cormorant Garamond, serif" font-size="13" fill="rgba(240,234,216,0.5)" font-style="italic" id="label-text">sillage</text>
+          <text x="100" y="196" text-anchor="middle" font-family="Jost, sans-serif" font-size="7" fill="rgba(240,234,216,0.3)" letter-spacing="3" id="label-sub">No. 01</text>
+          <!-- Base -->
+          <ellipse cx="100" cy="282" rx="54" ry="8" fill="rgba(201,169,110,0.12)"/>
+        </svg>
+        <div class="bottle-hint">tap to release</div>
+      </div>
+
+      <!-- Composed notes -->
+      <div id="prev-note-pills" style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap;margin-bottom:1.5rem"></div>
+
+      <!-- Generate link -->
+      <div id="link-area" style="display:none">
+        <div class="link-box mb2">
+          <span class="link-text" id="share-link-text"></span>
+          <button class="btn btn-sm" onclick="copyLink()" id="copy-btn">Copy</button>
+        </div>
+        <div class="row" style="justify-content:center;gap:.8rem;flex-wrap:wrap">
+          <button class="btn btn-sm btn-ghost" onclick="goTo('create-screen');currentStep=0;renderStep()">Edit</button>
+          <button class="btn btn-sm" onclick="openExperience()">Preview Experience ↗</button>
+        </div>
+      </div>
+      <div id="gen-btn-area" style="text-align:center">
+        <button class="btn btn-primary w100" onclick="generateLink()" style="max-width:300px">Generate Share Link</button>
+        <div class="mt2 text-center">
+          <button class="btn btn-ghost btn-sm" onclick="goTo('create-screen');currentStep=0;renderStep()">← Edit</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       EXPERIENCE SCREEN (recipient view)
+  ══════════════════════════════════════ -->
+  <div id="exp-screen" class="hidden">
+    <div id="exp-bg-layer"></div>
+    <div id="exp-content">
+      <div id="exp-recipient" class="exp-phase-label"></div>
+      <div class="ornament" id="exp-ornament" style="opacity:0;transition:opacity 1s">✦</div>
+      <div id="exp-phase-label" class="exp-phase-label mt3" style="margin-top:1.5rem"></div>
+      <div style="margin: 1.5rem 0" id="exp-bottle-area">
+        <svg id="exp-bottle" width="130" height="210" viewBox="0 0 200 320" fill="none" style="cursor:pointer;filter:drop-shadow(0 0 60px rgba(201,169,110,0.4));transition:filter 1s" onclick="sprayBottle()">
+          <rect x="72" y="8" width="56" height="28" rx="8" fill="#c9a96e" opacity=".9"/>
+          <rect x="80" y="36" width="40" height="22" rx="4" fill="rgba(201,169,110,0.3)" stroke="rgba(201,169,110,0.5)" stroke-width="1"/>
+          <ellipse cx="100" cy="58" rx="24" ry="6" fill="rgba(201,169,110,0.4)" stroke="rgba(201,169,110,0.5)" stroke-width="1"/>
+          <path d="M52 72 Q48 100 46 140 L46 240 Q46 280 76 282 L124 282 Q154 282 154 240 L154 140 Q152 100 148 72 Z" 
+                id="exp-bottle-body" fill="rgba(201,169,110,0.1)" stroke="rgba(201,169,110,0.4)" stroke-width="1.5"/>
+          <rect id="exp-liquid" x="46" y="160" width="110" height="122" clip-path="url(#bottle-clip)" fill="rgba(201,169,110,0.2)"/>
+          <path d="M60 90 Q62 130 62 180" stroke="rgba(255,255,255,0.1)" stroke-width="3" stroke-linecap="round"/>
+          <rect x="56" y="140" width="88" height="88" rx="8" fill="rgba(240,234,216,0.04)" stroke="rgba(240,234,216,0.08)" stroke-width="1"/>
+          <text x="100" y="176" text-anchor="middle" font-family="Cormorant Garamond, serif" font-size="13" fill="rgba(240,234,216,0.5)" font-style="italic">sillage</text>
+          <text x="100" y="196" text-anchor="middle" font-family="Jost, sans-serif" font-size="7" fill="rgba(240,234,216,0.3)" letter-spacing="3" id="exp-label-sub">No. 01</text>
+          <ellipse cx="100" cy="282" rx="54" ry="8" fill="rgba(201,169,110,0.12)"/>
+        </svg>
+      </div>
+      <div id="exp-hint" style="font-size:.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--muted);animation:pulse-hint 2s infinite">tap the bottle</div>
+      <div id="exp-message" class="mt4"></div>
+      <div id="exp-signature" style="font-size:.7rem;letter-spacing:0.15em;color:var(--muted);opacity:0;transition:opacity 1.5s;margin-top:2rem;text-transform:uppercase"></div>
+      <div id="exp-create-cta" style="opacity:0;transition:opacity 1.5s;margin-top:2.5rem">
+        <button class="btn btn-sm" onclick="startCreation();showScreen('create-screen')">Create yours →</button>
+      </div>
+    </div>
+    <button class="btn btn-ghost btn-sm" style="position:fixed;top:1.5rem;right:1.5rem;z-index:99" onclick="closeExperience()">✕</button>
+  </div>
+
+</div><!-- /app -->
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  DATA
+// ══════════════════════════════════════════════════════════
+const NOTES = {
+  top: [
+    { id:'citrus',  name:'Citrus',    desc:'Bright & energising',   color:'#f5c842', anim:'fast',   emotion:'Excitement',  particle:'spark' },
+    { id:'fresh',   name:'Fresh Air', desc:'Light & free',          color:'#7dd3f5', anim:'airy',   emotion:'Freedom',     particle:'drift' },
+    { id:'floral',  name:'Peony',     desc:'Delicate & tender',     color:'#f9a8d4', anim:'bloom',  emotion:'Tenderness',  particle:'petal' },
+    { id:'green',   name:'Forest',    desc:'Earthy & alive',        color:'#6ee7b7', anim:'sway',   emotion:'Vitality',    particle:'leaf'  },
+  ],
+  heart: [
+    { id:'rose',    name:'Rose',      desc:'Deep & romantic',       color:'#fb7185', anim:'bloom',  emotion:'Love',        particle:'heart' },
+    { id:'warm',    name:'Amber',     desc:'Warm & comforting',     color:'#fb923c', anim:'pulse',  emotion:'Warmth',      particle:'glow'  },
+    { id:'iris',    name:'Iris',      desc:'Soft & mysterious',     color:'#a78bfa', anim:'sway',   emotion:'Mystery',     particle:'drift' },
+    { id:'jasmine', name:'Jasmine',   desc:'Intoxicating & pure',   color:'#fde68a', anim:'float',  emotion:'Joy',         particle:'star'  },
+  ],
+  base: [
+    { id:'vanilla', name:'Vanilla',   desc:'Soft & lingering',      color:'#f5d58a', anim:'fade',   emotion:'Comfort',     particle:'smoke' },
+    { id:'musk',    name:'Musk',      desc:'Deep & sensual',        color:'#c084fc', anim:'deep',   emotion:'Desire',      particle:'smoke' },
+    { id:'cedar',   name:'Cedar',     desc:'Grounded & strong',     color:'#92400e', anim:'anchor', emotion:'Strength',    particle:'smoke' },
+    { id:'ocean',   name:'Sea Salt',  desc:'Vast & free',           color:'#38bdf8', anim:'wave',   emotion:'Serenity',    particle:'drift' },
+  ]
+};
+
+const THEMES = [
+  { id:'night',   label:'Night',    gradient:'radial-gradient(ellipse at 30% 40%, #1a0533 0%, #0a0906 70%)' },
+  { id:'dawn',    label:'Dawn',     gradient:'radial-gradient(ellipse at 60% 30%, #3d1a0a 0%, #0a0906 70%)' },
+  { id:'dusk',    label:'Dusk',     gradient:'radial-gradient(ellipse at 50% 50%, #0d1a2e 0%, #0a0906 70%)' },
+  { id:'bloom',   label:'Bloom',    gradient:'radial-gradient(ellipse at 40% 60%, #2e0a1f 0%, #0a0906 70%)' },
+  { id:'forest',  label:'Forest',   gradient:'radial-gradient(ellipse at 50% 40%, #0a1f0e 0%, #0a0906 70%)' },
+  { id:'golden',  label:'Golden',   gradient:'radial-gradient(ellipse at 50% 50%, #2a1a04 0%, #0a0906 70%)' },
+];
+
+// ══════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════
+let state = {
+  recipient: '',
+  topNote: null,
+  heartNote: null,
+  baseNote: null,
+  message: '',
+  theme: 'night',
+  id: null
+};
+let currentStep = 0;
+const STEPS = ['recipient','top','heart','base','message','theme','preview'];
+
+// ══════════════════════════════════════════════════════════
+//  AMBIENT CANVAS BG
+// ══════════════════════════════════════════════════════════
+const bgCanvas = document.getElementById('bg');
+const bgCtx = bgCanvas.getContext('2d');
+let bgOrbits = [];
+function resizeBg() {
+  bgCanvas.width = window.innerWidth;
+  bgCanvas.height = window.innerHeight;
+}
+function initBgOrbits() {
+  bgOrbits = Array.from({length:6}, (_,i) => ({
+    x: Math.random() * window.innerWidth,
+    y: Math.random() * window.innerHeight,
+    r: 200 + Math.random() * 300,
+    color: ['rgba(201,169,110,0.04)','rgba(201,100,80,0.03)','rgba(100,150,220,0.03)'][i%3],
+    vx: (Math.random()-.5) * .3,
+    vy: (Math.random()-.5) * .2,
+    phase: Math.random()*Math.PI*2
+  }));
+}
+function animateBg(t) {
+  bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height);
+  bgOrbits.forEach((o,i) => {
+    o.x += o.vx; o.y += o.vy;
+    if(o.x < -o.r) o.x = bgCanvas.width + o.r;
+    if(o.x > bgCanvas.width + o.r) o.x = -o.r;
+    if(o.y < -o.r) o.y = bgCanvas.height + o.r;
+    if(o.y > bgCanvas.height + o.r) o.y = -o.r;
+    const pulse = 1 + .15 * Math.sin(t*.0008 + o.phase);
+    const g = bgCtx.createRadialGradient(o.x,o.y,0,o.x,o.y,o.r*pulse);
+    g.addColorStop(0, o.color);
+    g.addColorStop(1, 'transparent');
+    bgCtx.fillStyle = g;
+    bgCtx.fillRect(0,0,bgCanvas.width,bgCanvas.height);
+  });
+  requestAnimationFrame(animateBg);
+}
+resizeBg(); initBgOrbits(); requestAnimationFrame(animateBg);
+window.addEventListener('resize', ()=>{ resizeBg(); });
+
+// ══════════════════════════════════════════════════════════
+//  PARTICLE SYSTEM
+// ══════════════════════════════════════════════════════════
+const pCanvas = document.getElementById('particle-canvas');
+const pCtx = pCanvas.getContext('2d');
+let particles = [];
+function resizePCanvas() {
+  pCanvas.width = window.innerWidth;
+  pCanvas.height = window.innerHeight;
+}
+resizePCanvas();
+window.addEventListener('resize', resizePCanvas);
+
+class Particle {
+  constructor(x, y, color, type) {
+    this.x = x; this.y = y;
+    this.color = color; this.type = type;
+    const angle = Math.random() * Math.PI * 2;
+    const speed = type==='fast' ? 2+Math.random()*4 :
+                  type==='airy' ? 1+Math.random()*2 :
+                  type==='smoke'? .3+Math.random()*.8 :
+                  type==='heart'? 1+Math.random()*2 : 1+Math.random()*3;
+    this.vx = Math.cos(angle)*speed;
+    this.vy = Math.sin(angle)*speed - (type==='smoke'?1.5:0.5);
+    this.life = 1;
+    this.decay = type==='smoke' ? .005+Math.random()*.008 : .012+Math.random()*.015;
+    this.size = type==='smoke' ? 8+Math.random()*20 :
+                type==='star' ? 2+Math.random()*3 : 3+Math.random()*6;
+    this.wobble = Math.random() * Math.PI * 2;
+    this.wobbleSpeed = .05 + Math.random()*.05;
+  }
+  update() {
+    this.wobble += this.wobbleSpeed;
+    this.x += this.vx + Math.sin(this.wobble)*.5;
+    this.y += this.vy;
+    this.vy *= .99;
+    this.vx *= .98;
+    this.life -= this.decay;
+  }
+  draw(ctx) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, this.life * .8);
+    if(this.type === 'smoke') {
+      const g = ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,this.size*(2-this.life));
+      g.addColorStop(0, this.color);
+      g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size*(2-this.life), 0, Math.PI*2);
+      ctx.fill();
+    } else if(this.type === 'heart') {
+      ctx.font = `${this.size*3}px serif`;
+      ctx.fillStyle = this.color;
+      ctx.textAlign = 'center';
+      ctx.fillText('♡', this.x, this.y);
+    } else if(this.type === 'star') {
+      ctx.fillStyle = this.color;
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
+      ctx.fill();
+    } else {
+      const blur = this.type==='fast' ? 2 : 4;
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur = blur;
+      ctx.fillStyle = this.color;
+      const r = Math.max(0, this.size * this.life);
+      if(r <= 0) { ctx.restore(); return; }
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, r, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function burst(x, y, color, type, count=40) {
+  for(let i=0;i<count;i++) particles.push(new Particle(x,y,color,type));
+}
+
+function animateParticles() {
+  pCtx.clearRect(0,0,pCanvas.width,pCanvas.height);
+  particles = particles.filter(p=>p.life>0);
+  particles.forEach(p=>{ p.update(); p.draw(pCtx); });
+  requestAnimationFrame(animateParticles);
+}
+animateParticles();
+
+// ══════════════════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════════════════
+function goTo(id) {
+  document.querySelectorAll('.screen, #exp-screen').forEach(s=>{
+    s.classList.add('hidden');
+    if(s.classList.contains('screen')) s.style.display='';
+  });
+  const el = document.getElementById(id);
+  el.classList.remove('hidden');
+  if(el.classList.contains('screen')) el.style.display='flex';
+}
+function showScreen(id) { goTo(id); }
+
+function startCreation() {
+  currentStep = 0;
+  goTo('create-screen');
+  renderStep();
+}
+
+// ══════════════════════════════════════════════════════════
+//  STEP RENDERER
+// ══════════════════════════════════════════════════════════
+function renderProgress() {
+  const bar = document.getElementById('progress-bar');
+  bar.innerHTML = STEPS.slice(0,-1).map((s,i)=>
+    `<div class="progress-dot ${i<currentStep?'done':i===currentStep?'active':''}"></div>`
+  ).join('');
+}
+
+function renderStep() {
+  renderProgress();
+  const el = document.getElementById('step-content');
+  el.style.opacity=0;
+  setTimeout(()=>{
+    el.innerHTML = getStepHTML(currentStep);
+    el.style.transition='opacity .4s';
+    el.style.opacity=1;
+    // attach events after render
+    if(currentStep >= 1 && currentStep <= 3) {
+      const type = ['','top','heart','base'][currentStep];
+      document.querySelectorAll('.note-card').forEach(card=>{
+        card.addEventListener('click',()=>{
+          document.querySelectorAll('.note-card').forEach(c=>c.classList.remove('selected'));
+          card.classList.add('selected');
+          const noteId = card.dataset.id;
+          if(type==='top') state.topNote = NOTES.top.find(n=>n.id===noteId);
+          if(type==='heart') state.heartNote = NOTES.heart.find(n=>n.id===noteId);
+          if(type==='base') state.baseNote = NOTES.base.find(n=>n.id===noteId);
+          // particle burst on select
+          const rect = card.getBoundingClientRect();
+          const note = (state.topNote||state.heartNote||state.baseNote);
+          if(note) burst(rect.left+rect.width/2, rect.top+rect.height/2, note.color, note.particle, 20);
+        });
+      });
+    }
+    if(currentStep===5) {
+      document.querySelectorAll('.theme-swatch').forEach(sw=>{
+        sw.addEventListener('click',()=>{
+          document.querySelectorAll('.theme-swatch').forEach(s=>s.classList.remove('selected'));
+          sw.classList.add('selected');
+          state.theme = sw.dataset.id;
+        });
+      });
+    }
+  }, 200);
+}
+
+function getStepHTML(step) {
+  switch(step) {
+    case 0: return `
+      <div class="label mb2">Step 1 of 6</div>
+      <h2 class="mb2">For whom?</h2>
+      <p class="mb3">Name the person receiving this fragrance.<br><span style="font-size:.75rem;opacity:.6">Optional — leave blank for an anonymous gift</span></p>
+      <input type="text" id="inp-recipient" placeholder="Their name…" value="${state.recipient}" maxlength="40">
+      <div class="row mt4">
+        <button class="btn btn-ghost btn-sm" onclick="goTo('landing-screen')">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" onclick="nextStep()">Next →</button>
+      </div>`;
+
+    case 1: return `
+      <div class="label mb2">Step 2 of 6 · Top Note</div>
+      <h2 class="mb2">First Impression</h2>
+      <p class="mb3">What do they feel the moment they open this?</p>
+      <div class="notes-grid">${NOTES.top.map(n=>`
+        <div class="note-card ${state.topNote?.id===n.id?'selected':''}" data-id="${n.id}" style="--note-color:${n.color}">
+          <div class="note-dot" style="background:${n.color};box-shadow:0 0 8px ${n.color}40"></div>
+          <div class="note-name">${n.name}</div>
+          <div class="note-desc">${n.emotion} · ${n.desc}</div>
+        </div>`).join('')}</div>
+      <div class="row mt4">
+        <button class="btn btn-ghost btn-sm" onclick="prevStep()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" onclick="nextStep()">Next →</button>
+      </div>`;
+
+    case 2: return `
+      <div class="label mb2">Step 3 of 6 · Heart Note</div>
+      <h2 class="mb2">The Core Emotion</h2>
+      <p class="mb3">The feeling that lingers longest at the heart of this fragrance.</p>
+      <div class="notes-grid">${NOTES.heart.map(n=>`
+        <div class="note-card ${state.heartNote?.id===n.id?'selected':''}" data-id="${n.id}" style="--note-color:${n.color}">
+          <div class="note-dot" style="background:${n.color};box-shadow:0 0 8px ${n.color}40"></div>
+          <div class="note-name">${n.name}</div>
+          <div class="note-desc">${n.emotion} · ${n.desc}</div>
+        </div>`).join('')}</div>
+      <div class="row mt4">
+        <button class="btn btn-ghost btn-sm" onclick="prevStep()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" onclick="nextStep()">Next →</button>
+      </div>`;
+
+    case 3: return `
+      <div class="label mb2">Step 4 of 6 · Base Note</div>
+      <h2 class="mb2">The Lasting Memory</h2>
+      <p class="mb3">What remains after everything else fades away?</p>
+      <div class="notes-grid">${NOTES.base.map(n=>`
+        <div class="note-card ${state.baseNote?.id===n.id?'selected':''}" data-id="${n.id}" style="--note-color:${n.color}">
+          <div class="note-dot" style="background:${n.color};box-shadow:0 0 8px ${n.color}40"></div>
+          <div class="note-name">${n.name}</div>
+          <div class="note-desc">${n.emotion} · ${n.desc}</div>
+        </div>`).join('')}</div>
+      <div class="row mt4">
+        <button class="btn btn-ghost btn-sm" onclick="prevStep()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" onclick="nextStep()">Next →</button>
+      </div>`;
+
+    case 4: return `
+      <div class="label mb2">Step 5 of 6 · Message</div>
+      <h2 class="mb2">Your words</h2>
+      <p class="mb3">Write something to accompany this fragrance.<br><span style="font-size:.75rem;opacity:.6">Optional — it will appear at the end of the experience</span></p>
+      <textarea id="inp-message" rows="4" placeholder="What you want them to feel…">${state.message}</textarea>
+      <div class="row mt4">
+        <button class="btn btn-ghost btn-sm" onclick="prevStep()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" onclick="nextStep()">Next →</button>
+      </div>`;
+
+    case 5:
+      const themes = THEMES.map(t=>`
+        <div class="theme-swatch ${state.theme===t.id?'selected':''}" data-id="${t.id}" 
+             style="background:${t.gradient}" title="${t.label}"></div>`).join('');
+      return `
+      <div class="label mb2">Step 6 of 6 · Mood</div>
+      <h2 class="mb2">Set the atmosphere</h2>
+      <p class="mb3">Choose a visual backdrop for the experience.</p>
+      <div class="themes-grid mb3">${themes}</div>
+      <div id="theme-preview" style="height:60px;border-radius:12px;transition:background 1s;background:${THEMES.find(t=>t.id===state.theme).gradient};border:1px solid var(--glass-border)"></div>
+      <div class="row mt4">
+        <button class="btn btn-ghost btn-sm" onclick="prevStep()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" onclick="gotoPreview()">Preview →</button>
+      </div>`;
+  }
+}
+
+function nextStep() {
+  if(currentStep===0) {
+    state.recipient = document.getElementById('inp-recipient')?.value.trim() || '';
+  }
+  if(currentStep===4) {
+    state.message = document.getElementById('inp-message')?.value.trim() || '';
+  }
+  if(currentStep===1 && !state.topNote) { shakeCard(); return; }
+  if(currentStep===2 && !state.heartNote) { shakeCard(); return; }
+  if(currentStep===3 && !state.baseNote) { shakeCard(); return; }
+  currentStep++;
+  if(currentStep >= STEPS.length-1) { gotoPreview(); return; }
+  renderStep();
+}
+
+function prevStep() {
+  if(currentStep > 0) { currentStep--; renderStep(); }
+}
+
+function shakeCard() {
+  const card = document.querySelector('.card');
+  card.style.animation = 'none';
+  card.style.transform = 'translateX(-8px)';
+  setTimeout(()=>{ card.style.transform = 'translateX(8px)'; setTimeout(()=>{ card.style.transform=''; },100); },100);
+}
+
+// Theme swatch preview
+document.addEventListener('click', e=>{
+  if(e.target.classList.contains('theme-swatch')) {
+    const id = e.target.dataset.id;
+    const t = THEMES.find(t=>t.id===id);
+    const prev = document.getElementById('theme-preview');
+    if(prev) prev.style.background = t.gradient;
+  }
+});
+
+// ══════════════════════════════════════════════════════════
+//  PREVIEW SCREEN
+// ══════════════════════════════════════════════════════════
+function gotoPreview() {
+  if(currentStep===4) state.message = document.getElementById('inp-message')?.value.trim()||'';
+  if(currentStep===5) {} // theme already set via click
+  goTo('preview-screen');
+  updatePreview();
+}
+
+function updatePreview() {
+  const notes = [state.topNote, state.heartNote, state.baseNote].filter(Boolean);
+  const colors = notes.map(n=>n.color);
+  
+  // Gradient on bottle
+  if(colors.length > 0) {
+    const liq = document.getElementById('liquid-fill');
+    if(liq) {
+      // inject defs gradient
+      const svg = document.getElementById('bottle-svg');
+      let defs = svg.querySelector('defs') || svg.insertBefore(document.createElementNS('http://www.w3.org/2000/svg','defs'), svg.firstChild);
+      defs.innerHTML = `<linearGradient id="liq-grad" x1="0" y1="0" x2="0" y2="1">
+        ${colors.map((c,i)=>`<stop offset="${i/(colors.length-1||1)*100}%" stop-color="${c}" stop-opacity=".35"/>`).join('')}
+      </linearGradient><clipPath id="bottle-clip2">
+        <path d="M53 73 Q49 100 47 140 L47 240 Q47 279 76 281 L124 281 Q153 281 153 240 L153 140 Q151 100 147 73 Z"/>
+      </clipPath>`;
+      liq.setAttribute('fill','url(#liq-grad)');
+      liq.setAttribute('clip-path','url(#bottle-clip2)');
+    }
+  }
+
+  // Pills
+  const pills = document.getElementById('prev-note-pills');
+  if(pills) {
+    pills.innerHTML = [
+      state.topNote && {note:state.topNote, label:'Top'},
+      state.heartNote && {note:state.heartNote, label:'Heart'},
+      state.baseNote && {note:state.baseNote, label:'Base'}
+    ].filter(Boolean).map(({note,label})=>`
+      <div style="display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .8rem;border-radius:50px;border:1px solid ${note.color}40;background:${note.color}12;font-size:.68rem;letter-spacing:.06em">
+        <span style="width:7px;height:7px;border-radius:50%;background:${note.color};box-shadow:0 0 5px ${note.color}"></span>
+        <span style="color:rgba(240,234,216,.5)">${label}</span> ${note.name}
+      </div>`).join('');
+  }
+
+  // Title
+  const title = document.getElementById('prev-title');
+  if(title && state.heartNote) title.textContent = `${state.heartNote.emotion} No. ${Math.floor(Math.random()*99)+1}`;
+
+  // Reset link UI
+  document.getElementById('link-area').style.display = 'none';
+  document.getElementById('gen-btn-area').style.display = 'block';
+}
+
+function triggerBottleSpray() {
+  const wrap = document.getElementById('bottle-wrap');
+  const rect = wrap.getBoundingClientRect();
+  const cx = rect.left + rect.width/2;
+  const cy = rect.top + rect.height*0.3;
+  const notes = [state.topNote,state.heartNote,state.baseNote].filter(Boolean);
+  notes.forEach((n,i)=>{
+    setTimeout(()=>burst(cx,cy,n.color,n.particle,30),i*150);
+  });
+  // Bottle shake
+  const svg = document.getElementById('bottle-svg');
+  svg.style.transform='translateY(-6px)';
+  setTimeout(()=>svg.style.transform='',300);
+}
+
+// ══════════════════════════════════════════════════════════
+//  LINK GENERATION (client-side encoding)
+// ══════════════════════════════════════════════════════════
+function generateLink() {
+  const payload = {
+    r: state.recipient,
+    t: state.topNote?.id,
+    h: state.heartNote?.id,
+    b: state.baseNote?.id,
+    m: state.message,
+    th: state.theme
+  };
+  const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
+  const link = `${location.href.split('#')[0]}#p=${encoded}`;
+  document.getElementById('share-link-text').textContent = link;
+  document.getElementById('link-area').style.display = 'block';
+  document.getElementById('gen-btn-area').style.display = 'none';
+  
+  // Particles!
+  const btn = document.getElementById('link-area');
+  const r = btn.getBoundingClientRect();
+  [state.topNote,state.heartNote,state.baseNote].filter(Boolean).forEach((n,i)=>{
+    setTimeout(()=>burst(r.left+r.width*.5, r.top, n.color, n.particle, 25), i*200);
+  });
+}
+
+function copyLink() {
+  const text = document.getElementById('share-link-text').textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✓ Copied';
+    setTimeout(()=>btn.textContent='Copy', 2000);
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+//  EXPERIENCE SCREEN
+// ══════════════════════════════════════════════════════════
+let expState = null;
+let expPhase = -1; // -1=landing, 0=top, 1=heart, 2=base, 3=message
+
+function openExperience() {
+  expState = state;
+  launchExperience(expState);
+}
+
+function closeExperience() {
+  const sc = document.getElementById('exp-screen');
+  sc.classList.add('hidden');
+  particles = [];
+}
+
+function launchExperience(s) {
+  expState = s;
+  expPhase = -1;
+  const sc = document.getElementById('exp-screen');
+  sc.classList.remove('hidden');
+  sc.style.opacity = '1';
+
+  // Reset
+  document.getElementById('exp-hint').style.display='block';
+  document.getElementById('exp-message').style.opacity='0';
+  document.getElementById('exp-message').style.transform='translateY(20px)';
+  document.getElementById('exp-signature').style.opacity='0';
+  document.getElementById('exp-create-cta').style.opacity='0';
+  document.getElementById('exp-ornament').style.opacity='0';
+  document.getElementById('exp-phase-label').style.opacity='0';
+  document.getElementById('exp-recipient').style.opacity='0';
+
+  // Set theme bg
+  const theme = THEMES.find(t=>t.id===s.theme)||THEMES[0];
+  document.getElementById('exp-bg-layer').style.background = theme.gradient;
+
+  // Recipient
+  if(s.recipient) {
+    const rec = document.getElementById('exp-recipient');
+    rec.textContent = `A fragrance created for ${s.recipient}`;
+    setTimeout(()=>rec.style.opacity='1', 600);
+  }
+  setTimeout(()=>{ document.getElementById('exp-ornament').style.opacity='1'; }, 1000);
+
+  // Colorize exp liquid
+  const colors = [s.topNote,s.heartNote,s.baseNote].filter(Boolean).map(n=>NOTES.top.concat(NOTES.heart,NOTES.base).find(x=>x.id===n?.id||x===n)?.color||n.color||'#c9a96e');
+  const expLiq = document.getElementById('exp-liquid');
+  if(expLiq && colors.length) {
+    const expSvg = document.getElementById('exp-bottle');
+    let defs2 = expSvg.querySelector('defs')||expSvg.insertBefore(document.createElementNS('http://www.w3.org/2000/svg','defs'),expSvg.firstChild);
+    defs2.innerHTML = `<linearGradient id="eliq-grad" x1="0" y1="0" x2="0" y2="1">
+      ${colors.map((c,i)=>`<stop offset="${i/(colors.length-1||1)*100}%" stop-color="${c}" stop-opacity=".4"/>`).join('')}
+    </linearGradient><clipPath id="exp-bottle-clip">
+      <path d="M53 73 Q49 100 47 140 L47 240 Q47 279 76 281 L124 281 Q153 281 153 240 L153 140 Q151 100 147 73 Z"/>
+    </clipPath>`;
+    expLiq.setAttribute('fill','url(#eliq-grad)');
+    expLiq.setAttribute('clip-path','url(#exp-bottle-clip)');
+  }
+
+  // Parallax
+  document.addEventListener('mousemove', parallaxExp);
+}
+
+function sprayBottle() {
+  expPhase++;
+  const phases = [
+    { note: expState?.topNote,   label:'Top Note',   phaseLabel:'First Impression' },
+    { note: expState?.heartNote, label:'Heart Note', phaseLabel:'The Core' },
+    { note: expState?.baseNote,  label:'Base Note',  phaseLabel:'The Lasting Memory' },
+    { note: null, label:'', phaseLabel:'' }
+  ];
+  if(expPhase > 3) return;
+
+  const hint = document.getElementById('exp-hint');
+  const bgLayer = document.getElementById('exp-bg-layer');
+  const phaseEl = document.getElementById('exp-phase-label');
+
+  if(expPhase < 3) {
+    const p = phases[expPhase];
+    const noteData = p.note ? NOTES.top.concat(NOTES.heart,NOTES.base).find(n=>n.id===p.note?.id||n===p.note)||p.note : null;
+    if(!noteData) return;
+
+    // Update bg
+    bgLayer.style.background = `radial-gradient(ellipse at 50% 40%, ${noteData.color}22 0%, ${noteData.color}08 40%, #0a0906 70%)`;
+
+    // Bottle glow
+    document.getElementById('exp-bottle').style.filter = `drop-shadow(0 0 80px ${noteData.color}60)`;
+
+    // Phase label
+    phaseEl.textContent = `${p.phaseLabel} · ${noteData.name}`;
+    phaseEl.style.opacity='1';
+
+    // Burst
+    const bottle = document.getElementById('exp-bottle-area');
+    const r = bottle.getBoundingClientRect();
+    const cx = r.left + r.width/2, cy = r.top;
+    burst(cx, cy, noteData.color, noteData.particle, 60);
+    // Ambient smaller bursts
+    for(let i=0;i<3;i++) setTimeout(()=>burst(
+      cx + (Math.random()-.5)*100, cy - Math.random()*60,
+      noteData.color, 'smoke', 15
+    ), i*300);
+
+    if(expPhase===2) hint.textContent = 'once more…';
+    if(expPhase < 2) hint.textContent = 'once more…';
+
+  } else {
+    // Final — message
+    hint.style.display='none';
+    phaseEl.style.opacity='0';
+    bgLayer.style.background = THEMES.find(t=>t.id===(expState?.theme||'night'))?.gradient || THEMES[0].gradient;
+
+    const msgEl = document.getElementById('exp-message');
+    const sigEl = document.getElementById('exp-signature');
+    const ctaEl = document.getElementById('exp-create-cta');
+
+    // All notes burst
+    [expState?.topNote,expState?.heartNote,expState?.baseNote].filter(Boolean).forEach((n,i)=>{
+      const noteData = NOTES.top.concat(NOTES.heart,NOTES.base).find(x=>x.id===n?.id||x===n)||n;
+      setTimeout(()=>{
+        const cx = window.innerWidth/2, cy = window.innerHeight/2;
+        burst(cx+(i-1)*80, cy, noteData.color||'#c9a96e', noteData.particle||'smoke', 50);
+      }, i*400);
+    });
+
+    if(expState?.message) {
+      msgEl.textContent = `"${expState.message}"`;
+      setTimeout(()=>{
+        msgEl.style.opacity='1';
+        msgEl.style.transform='none';
+      }, 800);
+    }
+
+    setTimeout(()=>{ sigEl.textContent = expState?.recipient ? `— for ${expState.recipient}` : '— with love'; sigEl.style.opacity='1'; }, 2000);
+    setTimeout(()=>{ ctaEl.style.opacity='1'; }, 3500);
+
+    document.getElementById('exp-bottle').style.filter='drop-shadow(0 0 40px rgba(201,169,110,0.2))';
+  }
+}
+
+function parallaxExp(e) {
+  const mx = (e.clientX/window.innerWidth - .5) * 20;
+  const my = (e.clientY/window.innerHeight - .5) * 20;
+  const content = document.getElementById('exp-content');
+  if(content) content.style.transform = `translate(${mx*.3}px,${my*.3}px)`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  SURPRISE ME
+// ══════════════════════════════════════════════════════════
+function surpriseMe() {
+  state.topNote   = NOTES.top[Math.floor(Math.random()*NOTES.top.length)];
+  state.heartNote = NOTES.heart[Math.floor(Math.random()*NOTES.heart.length)];
+  state.baseNote  = NOTES.base[Math.floor(Math.random()*NOTES.base.length)];
+  state.theme     = THEMES[Math.floor(Math.random()*THEMES.length)].id;
+  state.recipient = '';
+  state.message   = '';
+  // burst from center
+  const cx=window.innerWidth/2, cy=window.innerHeight/2;
+  [state.topNote,state.heartNote,state.baseNote].forEach((n,i)=>{
+    setTimeout(()=>burst(cx,cy,n.color,n.particle,30),i*200);
+  });
+  setTimeout(()=>gotoPreview(), 800);
+}
+
+// ══════════════════════════════════════════════════════════
+//  URL PARSING — auto-load experience
+// ══════════════════════════════════════════════════════════
+function parseUrlPayload() {
+  const hash = location.hash;
+  if(!hash.startsWith('#p=')) return;
+  try {
+    const raw = decodeURIComponent(atob(hash.slice(3)));
+    const d = JSON.parse(raw);
+    const s = {
+      recipient: d.r||'',
+      topNote:   NOTES.top.find(n=>n.id===d.t)||null,
+      heartNote: NOTES.heart.find(n=>n.id===d.h)||null,
+      baseNote:  NOTES.base.find(n=>n.id===d.b)||null,
+      message:   d.m||'',
+      theme:     d.th||'night'
+    };
+    // copy state
+    Object.assign(state, s);
+    goTo('landing-screen'); // keep all screens
+    // auto-launch experience after short delay
+    setTimeout(()=>launchExperience(s), 500);
+  } catch(e) { console.log('Invalid payload'); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  FLOATING BOTTLE ANIMATION
+// ══════════════════════════════════════════════════════════
+(function floatBottle() {
+  const el = document.getElementById('floating-bottle');
+  if(!el) return;
+  let t=0;
+  function tick() {
+    t += .02;
+    el.style.transform = `translateY(${Math.sin(t)*8}px) rotate(${Math.sin(t*.7)*2}deg)`;
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
+
+// ══════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════
+window.addEventListener('load', ()=>{
+  parseUrlPayload();
+});
+</script>
+</body>
+</html>
