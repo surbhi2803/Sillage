@@ -30,7 +30,7 @@ The final result is a shareable link where the recipient experiences a cinematic
 
 
 ## 🔗 Live Demo
-sillage-eowd-git-main-surbhis-projects-fc27e7ca.vercel.app
+https://sillage-eowd-2ted4xd06-surbhis-projects-fc27e7ca.vercel.app/
 
 ## 💡 Future Improvements
 - Add music integration
